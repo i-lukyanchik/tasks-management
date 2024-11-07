@@ -1,0 +1,19 @@
+server:
+  port: 9081
+  servlet:
+    context-path: /${spring.application.name}
+
+spring:
+  application:
+    name: task-management-test-app
+  datasource:
+    url: jdbc:postgresql://localhost:5432/tasks_db
+    username: task_user
+    password: testPassword
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
