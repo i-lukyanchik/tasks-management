@@ -14,13 +14,17 @@ repositories {
 }
 
 val easyRandomVersion = "4.0.0"
+val testcontainersVersion = "1.20.0"
+val mockitoKotlinVersion = "5.4.0"
+val kotlinLoggingVersion = "2.1.23"
+val openApiVersion = "1.6.15"
 
 dependencies {
     // Spring Boot dependencies
     implementation("org.springframework.boot:spring-boot-starter-data-jdbc")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-validation")
-    implementation(group = "org.springdoc", name = "springdoc-openapi-ui", version = "1.6.15")
+    implementation("org.springdoc:springdoc-openapi-ui:$openApiVersion")
 
     implementation("javax.annotation:javax.annotation-api")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
@@ -29,7 +33,7 @@ dependencies {
     // Kotlin dependencies
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation(group = "io.github.microutils", name = "kotlin-logging", version = "2.1.23")
+    implementation("io.github.microutils:kotlin-logging:$kotlinLoggingVersion")
 
     // PostgreSQL JDBC Driver
     implementation("org.postgresql:postgresql")
@@ -37,18 +41,16 @@ dependencies {
     // Flyway
     implementation("org.flywaydb:flyway-core")
 
-    // TestContainers for PostgreSQL
-    testImplementation("org.testcontainers:testcontainers:1.20.0")
-    testImplementation("org.testcontainers:junit-jupiter:1.20.0")
-    testImplementation("org.testcontainers:postgresql:1.20.0")
-    testImplementation("org.springframework.boot:spring-boot-starter-test") // Spring Boot Test
-    testImplementation(group = "org.jeasy", name = "easy-random-core", version = easyRandomVersion)
-    testImplementation("org.mockito.kotlin:mockito-kotlin:5.4.0")
-
     // JDBC Template
     implementation("org.springframework:spring-jdbc")
 
-    // Kotlin test dependencies
+    // Tests
+    testImplementation("org.testcontainers:testcontainers:$testcontainersVersion")
+    testImplementation("org.testcontainers:junit-jupiter:$testcontainersVersion")
+    testImplementation("org.testcontainers:postgresql:$testcontainersVersion")
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.jeasy:easy-random-core:$easyRandomVersion")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:$mockitoKotlinVersion")
     testImplementation("org.jetbrains.kotlin:kotlin-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 }
