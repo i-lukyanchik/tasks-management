@@ -1,6 +1,6 @@
 package io.xdatagroup.test.task.controller
 
-import io.xdatagroup.test.task.BaseTestContainer
+import io.xdatagroup.test.task.base.BaseTestContainer
 import io.xdatagroup.test.task.dao.TeamMemberDao
 import io.xdatagroup.test.task.dto.CreateTaskRequest
 import io.xdatagroup.test.task.dto.ErrorMessage
@@ -14,44 +14,37 @@ import io.xdatagroup.test.task.dto.UpdateTaskRequest
 import io.xdatagroup.test.task.enums.TaskStatus
 import io.xdatagroup.test.task.service.AuthService
 import io.xdatagroup.test.task.service.HARD_CODED_USER_ID
+import io.xdatagroup.test.task.service.TaskService
 import io.xdatagroup.test.task.tools.easyRandom
 import io.xdatagroup.test.task.tools.minusDays
 import io.xdatagroup.test.task.tools.plusDays
 import java.time.Instant
 import java.util.Collections
 import javax.annotation.PostConstruct
-import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
+import org.junit.jupiter.params.provider.ValueSource
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.mock.mockito.MockBean
-import org.springframework.boot.test.web.client.TestRestTemplate
-import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 
-internal class TaskManagementControllerTest : BaseTestContainer() {
-
-    @LocalServerPort
-    var port: Int = 0
+internal class TaskManagementControllerIT : BaseTestContainer() {
 
     @Autowired
-    lateinit var restTemplate: TestRestTemplate
+    private lateinit var teamMemberDao: TeamMemberDao
 
     @Autowired
-    lateinit var teamMemberDao: TeamMemberDao
-
-    @Autowired
-    lateinit var jdbcTemplate: NamedParameterJdbcTemplate
+    private lateinit var taskService: TaskService
 
     @MockBean
     private lateinit var authService: AuthService
@@ -72,41 +65,74 @@ internal class TaskManagementControllerTest : BaseTestContainer() {
 
     @BeforeEach
     fun setup() {
-        jdbcTemplate.update("delete from tasks", mapOf<String, Any>())
+        taskService.deleteTasks()
         whenever(authService.getUserId()).thenReturn(teamMemberDao.findAnyMember()!!.id)
     }
 
     @Test
     fun `create task success`() {
         val createTaskRequest = randomCreateTaskRequest()
-        val createResponse = sendCreateTaskRequest(createTaskRequest)
+        val createResponse = sendCreateTaskRequest(createTaskRequest, TaskResponse::class.java)
 
         val body = createResponse.body!!
         assertEquals(HttpStatus.OK, createResponse.statusCode)
-        Assertions.assertNotNull(body.id)
+        assertNotNull(body.id)
         assertEquals(createTaskRequest.title, body.title)
         assertEquals(HARD_CODED_USER_ID, body.createdByMemberId)
-        Assertions.assertNotNull(body.createdAt)
+        assertNotNull(body.createdAt)
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = [-1, 101])
+    fun `create task negative - priority must be between 1 and 100 inclusive`(value: Int) {
+        val createTaskRequest = randomCreateTaskRequest().copy(
+            priority = value
+        )
+        val createResponse = sendCreateTaskRequest(createTaskRequest, ErrorMessage::class.java)
+
+        assertEquals(HttpStatus.BAD_REQUEST, createResponse.statusCode)
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = [-1, 101])
+    fun `update task negative - priority must be between 1 and 100 inclusive`(value: Int) {
+        val createTaskRequest = randomCreateTaskRequest().copy(
+            priority = 1
+        )
+        val createTaskResponse = sendCreateTaskRequest(createTaskRequest, TaskResponse::class.java)
+        val updateTaskRequest = easyRandom.nextObject(UpdateTaskRequest::class.java).copy(
+            assignedMemberId = null,
+            dueDate = Instant.now().plusDays(1),
+            priority = value
+        )
+
+        val updateResponse = sendUpdateRequest(updateTaskRequest, createTaskResponse.body!!.id, ErrorMessage::class.java)
+
+        assertEquals(HttpStatus.BAD_REQUEST, updateResponse.statusCode)
     }
 
     @Test
     fun `update task not found`() {
-        sendCreateTaskRequest(randomCreateTaskRequest())
+        sendCreateTaskRequest(randomCreateTaskRequest(), TaskResponse::class.java)
         val updateTaskRequest = easyRandom.nextObject(UpdateTaskRequest::class.java).copy(
-            assignedMemberId = null
+            assignedMemberId = null,
+            dueDate = Instant.now().plusDays(1),
+            priority = 1
         )
-        val updateResponse = sendUpdateRequest(updateTaskRequest, easyRandom.nextLong())
+        val updateResponse = sendUpdateRequest(updateTaskRequest, easyRandom.nextLong(), ErrorMessage::class.java)
         assertEquals(HttpStatus.GONE, updateResponse.statusCode)
     }
 
     @Test
     fun `update task success`() {
         val createTaskRequest = randomCreateTaskRequest()
-        val createTaskResponse = sendCreateTaskRequest(createTaskRequest)
+        val createTaskResponse = sendCreateTaskRequest(createTaskRequest, TaskResponse::class.java)
         val updateTaskRequest = easyRandom.nextObject(UpdateTaskRequest::class.java).copy(
-            assignedMemberId = null
+            assignedMemberId = null,
+            dueDate = Instant.now().plusDays(1),
+            priority = 1
         )
-        val updateResponse = sendUpdateRequest(updateTaskRequest, createTaskResponse.body!!.id)
+        val updateResponse = sendUpdateRequest(updateTaskRequest, createTaskResponse.body!!.id, Unit::class.java)
         assertEquals(HttpStatus.NO_CONTENT, updateResponse.statusCode)
     }
 
@@ -121,7 +147,7 @@ internal class TaskManagementControllerTest : BaseTestContainer() {
     @Test
     fun `get task success`() {
         val createTaskRequest = randomCreateTaskRequest()
-        val createResponse = sendCreateTaskRequest(createTaskRequest)
+        val createResponse = sendCreateTaskRequest(createTaskRequest, TaskResponse::class.java)
 
         val getResponse =
             restTemplate.getForEntity(getUpdateByIdEndpoint, TaskResponse::class.java, createResponse.body!!.id)
@@ -131,13 +157,14 @@ internal class TaskManagementControllerTest : BaseTestContainer() {
 
     @Test
     fun `search tasks success found`() {
-        val createTaskResponse = sendCreateTaskRequest(randomCreateTaskRequest())
+        val createTaskResponse = sendCreateTaskRequest(randomCreateTaskRequest(), TaskResponse::class.java)
         val searchTasksRequest = SearchTasksRequest(null, TaskStatus.NEW)
         val searchResponse = sendSearchRequest(searchTasksRequest)
         assertEquals(HttpStatus.OK, searchResponse.statusCode)
         assertEquals(1, searchResponse.body!!.content.size)
         assertEquals(createTaskResponse.body!!.title, searchResponse.body!!.content[0].title)
     }
+
     @ParameterizedTest
     @EnumSource(value = TaskStatus::class, names = ["NEW"], mode = EnumSource.Mode.EXCLUDE)
     fun `search tasks success empty`(taskStatus: TaskStatus) {
@@ -160,14 +187,17 @@ internal class TaskManagementControllerTest : BaseTestContainer() {
 
     @Test
     fun `generate report success not zero`() {
-        val createTaskResponse = sendCreateTaskRequest(randomCreateTaskRequest())
+        val createTaskResponse = sendCreateTaskRequest(randomCreateTaskRequest(), TaskResponse::class.java)
         val updateTaskRequest = easyRandom.nextObject(UpdateTaskRequest::class.java).copy(
             assignedMemberId = null,
+            dueDate = Instant.now().plusDays(1),
+            priority = 1,
             status = TaskStatus.RELEASED
         )
-        sendUpdateRequest(updateTaskRequest, createTaskResponse.body!!.id)
+        sendUpdateRequest(updateTaskRequest, createTaskResponse.body!!.id, Unit::class.java)
 
-        val generateReportRequest = GenerateReportRequest(Instant.now().minusDays(3), Instant.now().plusDays(1), Format.JSON)
+        val generateReportRequest =
+            GenerateReportRequest(Instant.now().minusDays(3), Instant.now().plusDays(1), Format.JSON)
         val reportingResponse = sendReportingRequest(generateReportRequest)
 
         assertEquals(HttpStatus.OK, reportingResponse.statusCode)
@@ -203,9 +233,10 @@ internal class TaskManagementControllerTest : BaseTestContainer() {
             TasksResponse::class.java
         )
 
-    private fun sendUpdateRequest(
+    private fun <T> sendUpdateRequest(
         updateTaskRequest: UpdateTaskRequest,
-        taskId: Long
+        taskId: Long,
+        clazz: Class<T>
     ) =
         restTemplate.exchange(
             getUpdateByIdEndpoint,
@@ -215,11 +246,10 @@ internal class TaskManagementControllerTest : BaseTestContainer() {
                 HttpHeaders().apply {
                     contentType = MediaType.APPLICATION_JSON
                 }),
-            Unit::class.java, taskId
+            clazz, taskId
         )
 
-
-    private fun sendCreateTaskRequest(createTaskRequest: CreateTaskRequest) =
+    private fun <T> sendCreateTaskRequest(createTaskRequest: CreateTaskRequest, clazz: Class<T>) =
         restTemplate.exchange(
             createTaskEndpoint,
             HttpMethod.POST,
@@ -229,11 +259,13 @@ internal class TaskManagementControllerTest : BaseTestContainer() {
                     accept = Collections.singletonList(MediaType.APPLICATION_JSON)
                     contentType = MediaType.APPLICATION_JSON
                 }),
-            TaskResponse::class.java
+            clazz
         )
 
     private fun randomCreateTaskRequest() = easyRandom.nextObject(CreateTaskRequest::class.java).copy(
-        assignedMemberId = null
+        priority = 1,
+        assignedMemberId = null,
+        dueDate = Instant.now().plusDays(1)
     )
 
     private fun sendReportingRequest(generateReportRequest: GenerateReportRequest) =

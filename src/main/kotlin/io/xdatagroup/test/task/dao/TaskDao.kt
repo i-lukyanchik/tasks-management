@@ -21,6 +21,10 @@ private const val SQL_INSERT = """
 
 private const val SQL_GET_BY_ID = "select * from tasks where id = :taskId"
 
+private const val SQL_GET_BY_TITLE = "select * from tasks where title = :title"
+
+private const val SQL_DELETE_TASKS = "delete from tasks"
+
 private const val SQL_UPDATE = """
     update tasks set title = :title, description = :description, due_date = :dueDate, priority = :priority, 
                  assigned_member_id = :assignedMemberId, status = :status, updated_at = now(), updated_by_member_id = :updatedByMemberId
@@ -45,11 +49,19 @@ class TaskDao(
             "createdByMemberId" to createdByUserId
         ), taskRowMapper).single()
 
-    fun findTask(taskId: Long) : TaskResponse? = try {
+    fun findTaskByTitle(title: String) : TaskResponse? = try {
+        jdbcTemplate.queryForObject(SQL_GET_BY_TITLE, mapOf("title" to title), taskRowMapper)
+    }  catch (e: EmptyResultDataAccessException) {
+        null
+    }
+
+    fun findTaskById(taskId: Long) : TaskResponse? = try {
         jdbcTemplate.queryForObject(SQL_GET_BY_ID, mapOf("taskId" to taskId), taskRowMapper)
     }  catch (e: EmptyResultDataAccessException) {
         null
     }
+
+    fun deleteTasks() = jdbcTemplate.update(SQL_DELETE_TASKS, mapOf<String, Any>())
 
     fun updateTask(taskId: Long, request: UpdateTaskRequest, updatedByUserId: Long) {
         jdbcTemplate.update(

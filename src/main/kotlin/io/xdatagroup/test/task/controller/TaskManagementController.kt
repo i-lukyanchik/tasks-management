@@ -10,7 +10,6 @@ import io.xdatagroup.test.task.dto.UpdateTaskRequest
 import io.xdatagroup.test.task.service.TaskService
 import javax.validation.Valid
 import org.springframework.http.ResponseEntity
-import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -19,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import io.xdatagroup.test.task.api.TaskManagementApi
+import org.springframework.validation.annotation.Validated
 
 const val TASK_MANAGEMENT_REQUEST_MAPPING = "/api/v1/tasks"
 const val SEARCH_TASKS = "/search"
@@ -37,7 +37,7 @@ class TaskManagementController(
         ResponseEntity.ok(taskService.createTask(request))
 
     @GetMapping(BY_ID)
-    override fun getTask(@PathVariable taskId: Long) =
+    override fun getTask(@PathVariable taskId: Long): ResponseEntity<TaskResponse> =
         ResponseEntity.ok(taskService.getTask(taskId))
 
     @PutMapping(BY_ID)

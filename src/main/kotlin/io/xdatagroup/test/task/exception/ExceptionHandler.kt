@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.ControllerAdvice
 import org.springframework.web.bind.annotation.ExceptionHandler
 import io.xdatagroup.test.task.dto.ErrorMessage
 import io.xdatagroup.test.task.dto.InnerError
+import org.springframework.web.bind.MethodArgumentNotValidException
 
 private const val DEFAULT_ERROR_MESSAGE = "Internal error"
 private const val BAD_REQUEST = "Bad parameters in request exception"
@@ -20,7 +21,8 @@ private val logger = KotlinLogging.logger {}
 class ExceptionHandler {
 
     @ExceptionHandler(TaskNotFoundException::class)
-    fun handleTaskNotFoundException(e: TaskNotFoundException): ResponseEntity<ErrorMessage> = ResponseEntity.status(HttpStatus.GONE).body(ErrorMessage(e.message))
+    fun handleTaskNotFoundException(e: TaskNotFoundException): ResponseEntity<ErrorMessage> =
+        ResponseEntity.status(HttpStatus.GONE).body(ErrorMessage(e.message))
 
     @ExceptionHandler(Exception::class)
     fun handleOtherException(
@@ -41,11 +43,18 @@ class ExceptionHandler {
         IllegalArgumentException::class,
         MissingServletRequestParameterException::class,
         HttpMessageNotReadableException::class,
-        MissingRequestHeaderException::class
+        MissingRequestHeaderException::class,
+        TaskAlreadyPresentException::class
     )
     fun handleMissingServletRequestParameterException(e: RuntimeException): ResponseEntity<ErrorMessage> {
         logger.error(BAD_REQUEST, e)
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorMessage(BAD_REQUEST))
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorMessage(e.message ?: BAD_REQUEST))
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException::class)
+    fun handleMethodArgumentNotValidException(e: MethodArgumentNotValidException): ResponseEntity<ErrorMessage> {
+        logger.error(BAD_REQUEST, e)
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorMessage(e.message ?: BAD_REQUEST))
     }
 
 }

@@ -19,6 +19,7 @@ dependencies {
     // Spring Boot dependencies
     implementation("org.springframework.boot:spring-boot-starter-data-jdbc")
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation(group = "org.springdoc", name = "springdoc-openapi-ui", version = "1.6.15")
 
     implementation("javax.annotation:javax.annotation-api")
